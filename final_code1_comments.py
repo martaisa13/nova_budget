@@ -708,6 +708,7 @@ def add_expense():
         st.markdown(f"### 💸 Total Expense: {total:.2f} {currency}")
 
 
+
 #VIEW SUMMARY
 def view_summary():
     st.subheader("📋 View Summary")
