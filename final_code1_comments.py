@@ -672,21 +672,17 @@ def add_expense():
 
         if st.button("➕ Add Expense", type="primary"):
             if category == "Other Expenses":
-                # If category already exists, update it
                 if category in user_data[key]:
                     user_data[key][category]["amount"] += amount
                     if description:
-                        # Add space before new description for readability
                         user_data[key][category]["description"] += f" {description}"
                 else:
-                    # If it's the first entry, create dictionary
                     user_data[key][category] = {
                         "amount": amount,
                         "description": description
                     }
                 spent = user_data[key][category]["amount"]
             else:
-                # If not Other Expenses, just store amount (float)
                 if category in user_data[key]:
                     user_data[key][category] += amount
                 else:
@@ -694,11 +690,10 @@ def add_expense():
                 spent = user_data[key][category]
 
             st.toast(f"✅ {amount:.2f} {currency} added to {category}", icon="✅")
-            
-            # Check budget usage
+
+            # Show budget alert toast immediately
             check_budget_and_notify(category, spent)
 
-            # Save data to file
             st.session_state.data[st.session_state.username] = user_data
             save_data()
 
@@ -707,7 +702,6 @@ def add_expense():
         if category in user_data[key]:
             current = user_data[key][category]
             if category == "Other Expenses":
-                # Handle description and amount separately
                 current_amount = current.get("amount", 0)
                 current_description = current.get("description", "")
                 st.caption(f"💵 Current: {current_amount:.2f} {currency}")
@@ -718,26 +712,27 @@ def add_expense():
                     user_data[key][category]["amount"] = new_amount
                     user_data[key][category]["description"] = new_description
                     st.toast("✏️ 'Other Expenses' updated")
-                    # Save data
+
                     st.session_state.data[st.session_state.username] = user_data
                     save_data()
-                    # Check budget usage
+
+                    # Show budget alert toast immediately
                     check_budget_and_notify(category, new_amount)
 
             else:
-                # Regular expenses categories
                 st.caption(f"💵 Current: {current:.2f} {currency}")
                 new_amount = st.number_input("New amount", value=float(current))
                 if st.button("✏️ Update Income"):
                     user_data[key][category] = new_amount
                     st.toast(f"✏️ {category} updated")
-                    # Save data
+
                     st.session_state.data[st.session_state.username] = user_data
                     save_data()
-                    # Check budget usage
+
+                    # Show budget alert toast immediately
                     check_budget_and_notify(category, new_amount)
         else:
-            st.toast(f"⚠ No data under {category}", icon="⚠️")        
+            st.toast(f"⚠ No data under {category}", icon="⚠️")
 
     # Delete Expense
     elif action == "Delete":
@@ -745,7 +740,7 @@ def add_expense():
             if st.button("🗑 Delete Expense", type="primary"):
                 del user_data[key][category]
                 st.toast(f"🗑 {category} deleted successfully", icon="🗑")
-                # Save data
+
                 st.session_state.data[st.session_state.username] = user_data
                 save_data()
         else:
