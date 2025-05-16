@@ -611,6 +611,7 @@ def add_income():
             st.markdown(f"### 💵 Total Income: {total_income:.2f} {currency}")
 
 #ADD EXPENSE FUNCTION WiTH POP-UP MESSAGES
+
 def add_expense():
     st.subheader("💸 Register Expense")
     
@@ -639,6 +640,13 @@ def add_expense():
 
     currency = st.session_state.get("currency", "EUR")
 
+    def get_numeric_budget(budget):
+        # Helper to safely extract numeric value from budget if it's a dict
+        if isinstance(budget, dict):
+            # Adjust this if your budget dict uses a different key
+            return budget.get("amount", None)
+        return budget
+
     # ADD EXPENSE
     if action == "Add":
         amount = st.number_input(f"Amount for {category}", min_value=0.0, format="%.2f")
@@ -652,7 +660,8 @@ def add_expense():
             st.toast(f"✅ {amount:.2f} {currency} added to {category}", icon="✅")
 
             budget_field = f"expected_{category.lower()}"
-            budget = user_data[key].get(budget_field)
+            budget = get_numeric_budget(user_data[key].get(budget_field))
+
             if budget:
                 spent = user_data[key][category]
                 percent = spent / budget * 100
@@ -679,7 +688,8 @@ def add_expense():
                 save_data()
 
                 budget_field = f"expected_{category.lower()}"
-                budget = user_data[key].get(budget_field)
+                budget = get_numeric_budget(user_data[key].get(budget_field))
+
                 if budget:
                     percent = new_amount / budget * 100
                     if percent >= 100:
@@ -708,6 +718,7 @@ def add_expense():
                 st.write(f"*{cat}*: {val:.2f} {currency}")
                 total += val
         st.markdown(f"### 💸 Total Expense: {total:.2f} {currency}")
+
 #VIEW SUMMARY
 def view_summary():
     st.subheader("📋 View Summary")
