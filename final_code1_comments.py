@@ -1225,13 +1225,12 @@ def display_expense_transactions(month, data, expense_categories):
             description = expense_entry.get("description", "")
             if amount > 0:
                 total_expense += amount
-                st.write(f"- {category}: {amount:.2f} {currency}" + (f"  \n  Description: {description}" if description else ""))
+                st.write(f"- *{category}*: {amount:.2f} {currency}" + (f"  \n  Description: {description}" if description else ""))
         elif isinstance(expense_entry, (int, float)) and expense_entry > 0:
             total_expense += expense_entry
-            st.write(f"- {category}: {expense_entry:.2f} {currency}")
+            st.write(f"- *{category}*: {expense_entry:.2f} {currency}")
 
     return total_expense
-
 
 def view_transactions():
     st.subheader("📒 Complete Transaction History")
