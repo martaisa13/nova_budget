@@ -615,12 +615,6 @@ def add_income():
 def add_expense():
     st.subheader("💸 Register Expense")
     
-    st.markdown(
-        "Use this section to manage your expenses per categories for the selected month and year. "
-        "You can add new expenses entries, update existing ones, or remove them. "
-        "All changes are automatically saved.\nIn the end you have the possibility to check your Expenses Summary"
-    )
-    
     key = choose_time()
     if key is None:
         return
@@ -641,13 +635,10 @@ def add_expense():
     currency = st.session_state.get("currency", "EUR")
 
     def get_numeric_budget(budget):
-        # Helper to safely extract numeric value from budget if it's a dict
         if isinstance(budget, dict):
-            # Adjust this if your budget dict uses a different key
             return budget.get("amount", None)
         return budget
 
-    # ADD EXPENSE
     if action == "Add":
         amount = st.number_input(f"Amount for {category}", min_value=0.0, format="%.2f")
 
@@ -673,7 +664,6 @@ def add_expense():
             st.session_state.data[st.session_state.username] = user_data
             save_data()
 
-    # EDIT EXPENSE
     elif action == "Edit":
         if category in user_data[key]:
             current = user_data[key][category]
@@ -699,7 +689,6 @@ def add_expense():
         else:
             st.toast(f"⚠ No data under {category}", icon="⚠️")
 
-    # DELETE EXPENSE
     elif action == "Delete":
         if category in user_data[key]:
             if st.button("🗑 Delete Expense", type="primary"):
@@ -710,7 +699,6 @@ def add_expense():
         else:
             st.warning(f"⚠ No expense to delete under {category}.")
 
-    # EXPENSE SUMMARY
     with st.expander("📊 Show expense summary"):
         total = 0
         for cat, val in user_data[key].items():
@@ -718,6 +706,7 @@ def add_expense():
                 st.write(f"*{cat}*: {val:.2f} {currency}")
                 total += val
         st.markdown(f"### 💸 Total Expense: {total:.2f} {currency}")
+
 
 #VIEW SUMMARY
 def view_summary():
