@@ -644,18 +644,15 @@ def add_expense():
 
     # Add expense
     if action == "Add":
-        amount = st.number_input(f"Amount for {selected_category}", min_value=0.0, format="%.2f")
+        amount = st.number_input(f"Amount for {category}", min_value=0.0, format="%.2f")
+        description = ""
+
         if st.button("➕ Add Expense", type="primary"):
-            current_value = user_data[key].get(selected_category, 0.0)
-            if isinstance(current_value, dict):
-                current_amount = current_value.get("amount", 0.0)
+            # just store amount (float)
+            if category in user_data[key]:
+                user_data[key][category] += amount
             else:
-                current_amount = current_value
-            user_data[key][selected_category] = current_amount + amount
-            st.success(f"✔ Added {amount:.2f} {currency} for {selected_category}.")
-            save_data()
-
-
+                user_data[key][category] = amount
             
             #Pop up of sucess message
             st.toast(f"✅ {amount:.2f} {currency} added to {category}", icon="✅")
@@ -681,31 +678,15 @@ def add_expense():
     elif action == "Edit":
         if category in user_data[key]:
             current = user_data[key][category]
-            if category == "Other Expenses":
-                # Handle description and amount separately
-                current_amount = current["amount"]
-                current_description = current.get("description", "")
-                st.caption(f"💵 Current: {current_amount:.2f} {currency}")
-                st.caption(f"📝 Description: {current_description or '(none)'}")
-                new_amount = st.number_input("New amount", value=float(current_amount))
-                new_description = st.text_input("New description", value=current_description)
-                if st.button("✏️ Update Expense"):
-                    user_data[key][category]["amount"] = new_amount
-                    user_data[key][category]["description"] = new_description
-                    st.toast("✏️ 'Other Expenses' updated")
-                    #save data
-                    st.session_state.data[st.session_state.username] = user_data
-                    save_data()
-            else:
-                # Regular expenses catgeories
-                st.caption(f"💵 Current: {current:.2f} {currency}")
-                new_amount = st.number_input("New amount", value=float(current))
-                if st.button("✏️ Update Income"):
-                    user_data[key][category] = new_amount
-                    st.toast(f"✏️ {category} updated")
-                    #save data
-                    st.session_state.data[st.session_state.username] = user_data
-                    save_data()
+            # Regular expenses catgeories
+            st.caption(f"💵 Current: {current:.2f} {currency}")
+            new_amount = st.number_input("New amount", value=float(current))
+            if st.button("✏️ Update Income"):
+                user_data[key][category] = new_amount
+                st.toast(f"✏️ {category} updated")
+                #save data
+                st.session_state.data[st.session_state.username] = user_data
+                save_data()
             
             # Pop up message
             budget_field = f"expected_{category.lower()}"
@@ -738,20 +719,10 @@ def add_expense():
         #loop throug the categories and values of the dictionary
         for cat, val in user_data[key].items():
             if cat in expense_categories:
-                #if the category is other expenses
-                if isinstance(val, dict):
-                    st.write(f"*{cat}*: {val['amount']:.2f} {currency} — {val.get('description', '')}")
-                    #sum the other expenses category value
-                    total += val["amount"]
-                #for all other categories 
-                else:
-                    st.write(f"*{cat}*: {val:.2f} {currency}")
-                    #sum all the avlues of the categories
-                    total += val
-        st.markdown(f"### 💸 Total Expense: {total:.2f} {currency}") 
-
-
-
+                st.write(f"*{cat}*: {val:.2f} {currency}")
+                #sum all the avlues of the categories
+                total += val
+        st.markdown(f"### 💸 Total Expense: {total:.2f} {currency}")
 
 #VIEW SUMMARY
 def view_summary():
