@@ -203,22 +203,27 @@ def choose_time():
 #DEFINE BUDGET FUNCTION
 def define_budget():
     st.subheader("📅 Define your monthly Budget")
+
     key = choose_time()
-    if not key:
-        return
 
-    st.markdown("---")
-    st.subheader("📊 Define Your Budget")
-    budget_type = st.radio("What would you like to manage?", ["Expected Income", "Expected Expenses"])
+    # Only continue if a valid key is returned
+    if key:  
+        st.markdown("---")
+        st.subheader("📊 Define Your Budget")
+        budget_type = st.radio("What would you like to manage?", ["Expected Income", "Expected Expenses"])
 
-    if budget_type == "Expected Income":
-        manage_budget_for_category(key)
-    elif budget_type == "Expected Expenses":
-        manage_expense_budget(key)
+        # Initialize budget inputs if not already in session state
+        if "budget_inputs" not in st.session_state:
+            st.session_state.budget_inputs = {}
+
+        if budget_type == "Expected Expenses":
+            manage_expense_budget(key)
+        elif budget_type == "Expected Income":
+            manage_budget_for_category(key)
 
 
 def manage_budget_for_category(key):
-    """Add/Edit/Delete expected income budget for the selected period."""
+    #check if there is data for username
     if st.session_state.username not in st.session_state.data:
         st.session_state.data[st.session_state.username] = {}
 
@@ -227,36 +232,85 @@ def manage_budget_for_category(key):
         user_data[key] = {}
 
     st.subheader("💼 Manage Income Budget")
+    #user selects income source and action
     selected_source = st.selectbox("Select income source", income_sources)
     action = st.radio("Choose action", ["Add", "Edit", "Delete"])
-
     field = f"expected_{selected_source.lower()}"
+
     currency = st.session_state.get("currency", "EUR")
     data_changed = False
 
+    #add budgeted income
     if action == "Add":
         amount = st.number_input("Enter budget amount:", min_value=0.0, format="%.2f")
+        description = ""
+        #to handle other income
+        if selected_source == "Other Income":
+            description = st.text_input("Description (optional):")
+
         if st.button("➕ Add Income Budget"):
-            current_value = user_data[key].get(field, 0.0)
-            if isinstance(current_value, dict):
-                current_value = current_value.get("amount", 0.0)
-            user_data[key][field] = current_value + amount
+            current_value = user_data[key].get(field)
+
+            if selected_source == "Other Income":
+                #chek if there is already data to add
+                if isinstance(current_value, dict):
+                    existing_amount = current_value.get("amount", 0.0)
+                    existing_description = current_value.get("description", "")
+                else:
+                    existing_amount = current_value if isinstance(current_value, (int, float)) else 0.0
+                    existing_description = ""
+
+                new_description = existing_description
+                if description:
+                    new_description += f"{description}" if existing_description else description
+
+                user_data[key][field] = {
+                    "amount": existing_amount + amount,
+                    "description": new_description
+                }
+            #for other income 
+            else:
+                existing_amount = current_value if isinstance(current_value, (int, float)) else 0.0
+                user_data[key][field] = existing_amount + amount
+
             st.success(f"✔ Added {amount} {currency} under {selected_source} Income Budget!")
+            #to save data
             data_changed = True
 
+    #edit bidgetd income
     elif action == "Edit":
+        #chekif there is current data
         if field in user_data[key]:
             current_value = user_data[key][field]
-            amount = current_value.get("amount", 0.0) if isinstance(current_value, dict) else current_value
-            new_amount = st.number_input("New budget amount:", value=amount, min_value=0.0, format="%.2f")
-            if st.button("✏️ Update Budget"):
-                user_data[key][field] = new_amount
-                st.success("✔ Budget updated!")
-                data_changed = True
+            #for other incoem
+            if selected_source == "Other Income" and isinstance(current_value, dict):
+                amount = current_value.get("amount", 0.0)
+                description = current_value.get("description", "")
+                new_amount = st.number_input("New budget amount:", value=amount)
+                new_description = st.text_input("New description (optional):", value=description)
+
+                if st.button("✏️ Update Budget"):
+                    user_data[key][field] = {
+                        "amount": new_amount,
+                        "description": new_description
+                    }
+                    st.success("✔ Budget updated!")
+                    data_changed = True
+            #for all other sources
+            else:
+                current_amount = current_value if isinstance(current_value, (int, float)) else 0.0
+                new_amount = st.number_input("New budget amount:", value=current_amount)
+                if st.button("✏️ Update Budget"):
+                    user_data[key][field] = new_amount
+                    st.success("✔ Budget updated!")
+                    data_changed = True
+        #if there is no data warning
         else:
             st.warning("⚠ No existing budget for this category.")
 
+    #delete action
     elif action == "Delete":
+        #if there is data entry
         if field in user_data[key]:
             if st.button("🗑 Delete Budget"):
                 del user_data[key][field]
@@ -265,14 +319,46 @@ def manage_budget_for_category(key):
         else:
             st.warning("⚠ No budget found to delete.")
 
+    #save all the data
     if data_changed:
         save_data()
 
-    display_budget_summary(key, income_sources, "expected", currency)
+    #Summary Section
+    st.markdown("---")
+    st.subheader("📊 Income Budget Summary")
+    #get budgeted income values
+    if key in user_data:
+        entries = []
+        total_income = 0.0
+        for source in income_sources:
+            field_key = f"expected_{source.lower()}"
+            value = user_data[key].get(field_key)
+
+            if value:
+                if source == "Other Income" and isinstance(value, dict):
+                    amount = value['amount']
+                    description = value.get('description', '')
+                    entries.append(f"• **{source}**: {amount:.2f} {currency} ({description})")
+                else:
+                    amount = value
+                    entries.append(f"• **{source}**: {amount:.2f} {currency}")
+                total_income += amount
+
+        if entries:
+            # Print each entry on a new line
+            for entry in entries:
+                st.markdown(entry)
+
+            # Show the total income
+            st.subheader(f"**Total Budgted Income**: {total_income:.2f} {currency}")
+        else:
+            st.info("No income budget entries for this period yet.")
+    else:
+        st.info("No data for the selected month and year.")
 
 
 def manage_expense_budget(key):
-    """Add/Edit/Delete expected expense budget for the selected period."""
+    #check if there is data for username
     if st.session_state.username not in st.session_state.data:
         st.session_state.data[st.session_state.username] = {}
 
@@ -281,6 +367,7 @@ def manage_expense_budget(key):
         user_data[key] = {}
 
     st.subheader("📦 Manage Expense Budget")
+    #menu of the budhgetd expenses
     selected_category = st.selectbox("Select expense category", expense_categories)
     action = st.radio("Choose action", ["Add", "Edit", "Delete"])
 
@@ -288,28 +375,68 @@ def manage_expense_budget(key):
     currency = st.session_state.get("currency", "EUR")
     data_changed = False
 
+    #add budgedt expense
     if action == "Add":
-        amount = st.number_input("Enter budget amount:", min_value=0.0, format="%.2f")
+        amount = st.number_input("Enter budgeted expense:", min_value=0.0, format="%.2f")
+        description = ""
+        if selected_category == "Other Expenses":
+            description = st.text_input("Description (optional):")
+
         if st.button("➕ Add Expense Budget"):
-            current_value = user_data[key].get(field, 0.0)
-            if isinstance(current_value, dict):
-                current_value = current_value.get("amount", 0.0)
-            user_data[key][field] = current_value + amount
+            current_value = user_data[key].get(field)
+            #to handel other expenses
+            if selected_category == "Other Expenses":
+                if isinstance(current_value, dict):
+                    existing_amount = current_value.get("amount", 0.0)
+                    existing_description = current_value.get("description", "")
+                else:
+                    existing_amount = current_value if isinstance(current_value, (int, float)) else 0.0
+                    existing_description = ""
+
+                new_description = existing_description
+                if description:
+                    new_description += f"; {description}" if existing_description else description
+
+                user_data[key][field] = {
+                    "amount": existing_amount + amount,
+                    "description": new_description
+                }
+            else:
+                existing_amount = current_value if isinstance(current_value, (int, float)) else 0.0
+                user_data[key][field] = existing_amount + amount
+
             st.success(f"✔ Added {amount} {currency} under {selected_category} expense budget.")
             data_changed = True
 
+    #edit buidgetd income
     elif action == "Edit":
         if field in user_data[key]:
             current_value = user_data[key][field]
-            amount = current_value.get("amount", 0.0) if isinstance(current_value, dict) else current_value
-            new_amount = st.number_input("New budget amount:", value=amount, min_value=0.0, format="%.2f")
-            if st.button("✏️ Update Expense Budget"):
-                user_data[key][field] = new_amount
-                st.success("✔ Expense budget updated.")
-                data_changed = True
+            #for the other expenses
+            if selected_category == "Other Expenses" and isinstance(current_value, dict):
+                current_amount = current_value.get("amount", 0.0)
+                current_description = current_value.get("description", "")
+                new_amount = st.number_input("New budgeted amount:", value=current_amount)
+                new_description = st.text_input("New description (optional):", value=current_description)
+
+                if st.button("✏️ Update Expense Budget"):
+                    user_data[key][field] = {
+                        "amount": new_amount,
+                        "description": new_description
+                    }
+                    st.success("✔ Expense budget updated.")
+                    data_changed = True
+            else:
+                current_amount = current_value if isinstance(current_value, (int, float)) else 0.0
+                new_amount = st.number_input("New budgeted amount:", value=current_amount)
+                if st.button("✏️ Update Expense Budget"):
+                    user_data[key][field] = new_amount
+                    st.success("✔ Expense budget updated.")
+                    data_changed = True
         else:
             st.warning("⚠ No budget to edit.")
-
+    
+    #to delete budgetd expense
     elif action == "Delete":
         if field in user_data[key]:
             if st.button("🗑 Delete Expense Budget"):
@@ -319,47 +446,58 @@ def manage_expense_budget(key):
         else:
             st.warning("⚠ No budget found to delete.")
 
+    #save data
     if data_changed:
         save_data()
 
-    display_budget_summary(key, expense_categories, "expected", currency)
-
-
-def display_budget_summary(key, category_list, prefix, currency):
-    """Display summary of budgets for the selected categories."""
+    # Summary Section
     st.markdown("---")
-    st.subheader(f"📊 {'Income' if prefix == 'expected' and category_list == income_sources else 'Expense'} Budget Summary")
+    st.subheader("📊 Expense Budget Summary")
+    # get infro of the user 
+    if key in user_data:
+        entries = []
+        total_expenses = 0.0
+        for category in expense_categories:
+            field_key = f"expected_{category.lower()}"
+            value = user_data[key].get(field_key)
 
-    user_data = st.session_state.data.get(st.session_state.username, {})
-    data = user_data.get(key, {})
+            if value:
+                if category == "Other Expenses" and isinstance(value, dict):
+                    amount = value['amount']
+                    description = value.get('description', '')
+                    entries.append(f"• **{category}**: {amount:.2f} {currency} ({description})")
+                else:
+                    amount = value
+                    entries.append(f"• **{category}**: {amount:.2f} {currency}")
+                total_expenses += amount
 
-    if not data:
-        st.info("No budget entries for this period yet.")
-        return
+        if entries:
+            # Print each entry on a new line
+            for entry in entries:
+                st.markdown(entry)
+            # Show the total expenses
+            st.subheader(f"**Total Budgeted Expenses**: {total_expenses:.2f} {currency}")
+        else:
+            st.info("No expense budget entries for this period yet.")
+    else:
+        st.info("No data for the selected month and year.")
 
-    total = 0.0
-    for category in category_list:
-        field_key = f"{prefix}_{category.lower()}"
-        value = data.get(field_key)
-        if value:
-            amount = value.get("amount", value) if isinstance(value, dict) else value
-            st.markdown(f"• **{category}**: {amount:.2f} {currency}")
-            total += amount
-
-    st.subheader(f"**Total Budgeted {'Income' if prefix == 'expected' and category_list == income_sources else 'Expenses'}:** {total:.2f} {currency}")
-
-
+#ADD INCOME FUNCTION
 def add_income():
-    st.subheader("💰 Register Income")
+    st.subheader ("💰Register Income")
+    # Explanation text for the user
     st.markdown(
-        "Add, update or delete your income entries for the selected month and year. "
-        "All changes are saved automatically."
+        "Use this section to manage your income sources for the selected month and year. "
+        "You can add new income entries, update existing ones, or remove them. "
+        "All changes are automatically saved.\nIn the end you have the possibility to check your Income Summary"
     )
-
+    
+    # Get key for selected month/year (e.g. "March_2025")
     key = choose_time()
-    if not key:
+    if key is None:
         return
-
+     
+    # Make sure user data structure exists
     if st.session_state.username not in st.session_state.data:
         st.session_state.data[st.session_state.username] = {}
 
@@ -367,6 +505,8 @@ def add_income():
     if key not in user_data:
         user_data[key] = {}
 
+    # Compact layout with two columns
+    # User selects income source and action (Add/Edit/Delete)
     col1, col2 = st.columns(2)
     with col1:
         selected_source = st.selectbox("💰 Income source", income_sources)
@@ -375,98 +515,254 @@ def add_income():
 
     currency = st.session_state.get("currency", "EUR")
 
+    # Add Income
     if action == "Add":
         amount = st.number_input(f"Amount for {selected_source}", min_value=0.0, format="%.2f")
-        if st.button("➕ Add Income", type="primary"):
-            current_amount = user_data[key].get(selected_source, 0.0)
-            if isinstance(current_amount, dict):
-                current_amount = current_amount.get("amount", 0.0)
-            user_data[key][selected_source] = current_amount + amount
-            st.success(f"✔ Added {amount:.2f} {currency} for {selected_source}.")
-            save_data()
+        description = ""
+        if selected_source == "Other Income":
+            description = st.text_input("📝 Optional description")
 
+        if st.button("➕ Add Income", type="primary"):
+            if selected_source == "Other Income":
+                # If category already exists, update it
+                if selected_source in user_data[key]:
+                    user_data[key][selected_source]["amount"] += amount
+                    if description:
+                        user_data[key][selected_source]["description"] += f"{description}"
+                else:
+                     # If it's the first entry, create dictionary
+                    user_data[key][selected_source] = {
+                        "amount": amount,
+                        "description": description
+                    }
+            else:
+                # If not Other Income, just store amount (float)
+                if selected_source in user_data[key]:
+                    user_data[key][selected_source] += amount
+                else:
+                    user_data[key][selected_source] = amount
+
+            # Save data to file
+            st.session_state.data[st.session_state.username] = user_data
+            save_data()
+            #Pop up of sucess message
+            st.toast(f"✅ Added {amount:.2f} {currency} to {selected_source}")
+
+    # Edit Income 
     elif action == "Edit":
         if selected_source in user_data[key]:
-            current_amount = user_data[key][selected_source]
-            amount = current_amount.get("amount", current_amount) if isinstance(current_amount, dict) else current_amount
-            new_amount = st.number_input(f"New amount for {selected_source}", value=amount, min_value=0.0, format="%.2f")
-            if st.button("✏️ Update Income"):
-                user_data[key][selected_source] = new_amount
-                st.success("✔ Income updated.")
-                save_data()
+            current = user_data[key][selected_source]
+            if selected_source == "Other Income":
+                 # Handle description and amount separately
+                current_amount = current["amount"]
+                current_description = current.get("description", "")
+                st.caption(f"💵 Current: {current_amount:.2f} {currency}")
+                st.caption(f"📝 Description: {current_description or '(none)'}")
+                new_amount = st.number_input("New amount", value=float(current_amount))
+                new_description = st.text_input("New description", value=current_description)
+                if st.button("✏️ Update Income"):
+                    user_data[key][selected_source]["amount"] = new_amount
+                    user_data[key][selected_source]["description"] = new_description
+                    st.toast("✏️ 'Other Income' updated")
+                    st.session_state.data[st.session_state.username] = user_data
+                    save_data()
+            else:
+                # Regular income types
+                st.caption(f"💵 Current: {current:.2f} {currency}")
+                new_amount = st.number_input("New amount", value=float(current))
+                if st.button("✏️ Update Income"):
+                    user_data[key][selected_source] = new_amount
+                    st.toast(f"✏️ {selected_source} updated")
+                    st.session_state.data[st.session_state.username] = user_data
+                    save_data()
         else:
-            st.warning(f"⚠ No income entry found for {selected_source}.")
+            st.toast(f"⚠ No data under {selected_source}", icon="⚠️")
 
+    # Delete Income
     elif action == "Delete":
         if selected_source in user_data[key]:
-            if st.button("🗑 Delete Income"):
+            if st.button("🗑 Delete Income", use_container_width=True):
                 del user_data[key][selected_source]
-                st.success("✔ Income deleted.")
+                st.toast(f"🗑 {selected_source} deleted")
+                st.session_state.data[st.session_state.username] = user_data
                 save_data()
         else:
-            st.warning(f"⚠ No income entry found for {selected_source}.")
+            st.toast(f"⚠ Nothing to delete under {selected_source}", icon="⚠️")
 
-    display_budget_summary(key, income_sources, "", currency)
+    # Income Summary 
+    if user_data[key]:
+        with st.expander("📊 Show income summary"):
+            total_income = 0
+            #loop through the dictionary of for the sources and values
+            for source, value in user_data[key].items():
+                if source in income_sources:
+                    #if other income
+                    if isinstance(value, dict):  
+                        amount = value.get("amount", 0)
+                        description = value.get("description", "No description")
+                        st.write(f"**{source}**: {amount:.2f} {currency} — _{description}_")
+                    #other income sources
+                    else:
+                        amount = value
+                        st.write(f"**{source}**: {amount:.2f} {currency}")
+                    #sum the total values
+                    total_income += amount
+            
+            st.markdown(f"### 💵 Total Income: {total_income:.2f} {currency}")
 
-
+#ADD EXPENSE FUNCTION WiTH POP-UP MESSAGES
 def add_expense():
-    st.subheader("💸 Register Expense")
+    st.subheader ("💸 Register Expense")
+    # Explanation text for the user
     st.markdown(
-        "Add, update or delete your expense entries for the selected month and year. "
-        "All changes are saved automatically."
+        "Use this section to manage your expenses per categories for the selected month and year. "
+        "You can add new expenses entries, update existing ones, or remove them. "
+        "All changes are automatically saved.\nIn the end you have the possibility to check your Expenes Summary"
     )
-
+    # Get key for selected month/year (e.g. "March_2025")
     key = choose_time()
-    if not key:
+    if key is None:
         return
 
+    # Make sure user data structure exists
     if st.session_state.username not in st.session_state.data:
         st.session_state.data[st.session_state.username] = {}
-
+    
     user_data = st.session_state.data[st.session_state.username]
     if key not in user_data:
         user_data[key] = {}
 
+    # Compact layout with two columns
+    # User selects expenses categories and action (Add/Edit/Delete)
     col1, col2 = st.columns(2)
     with col1:
-        selected_category = st.selectbox("💸 Expense category", expense_categories)
+        category = st.selectbox("💸 Expense Category", expense_categories)
     with col2:
         action = st.radio("⚙️ Action", ["Add", "Edit", "Delete"], horizontal=True)
 
     currency = st.session_state.get("currency", "EUR")
 
+    # Add expense
     if action == "Add":
-        amount = st.number_input(f"Amount for {selected_category}", min_value=0.0, format="%.2f")
+        amount = st.number_input(f"Amount for {category}", min_value=0.0, format="%.2f")
+        description = ""
+        if category == "Other Expenses":
+            description = st.text_input("📝 Optional description")
+
         if st.button("➕ Add Expense", type="primary"):
-            current_amount = user_data[key].get(selected_category, 0.0)
-            if isinstance(current_amount, dict):
-                current_amount = current_amount.get("amount", 0.0)
-            user_data[key][selected_category] = current_amount + amount
-            st.success(f"✔ Added {amount:.2f} {currency} for {selected_category}.")
+            if category == "Other Expenses": 
+                # If category already exists, update it
+                if category in user_data[key]:
+                    user_data[key][category]["amount"] += amount
+                    if description:
+                        user_data[key][category]["description"] += f"{description}"
+                else:
+                    # If it's the first entry, create dictionary
+                    user_data[key][category] = {
+                        "amount": amount,
+                        "description": description
+                    }
+            else:
+                # If not Other Income, just store amount (float)
+                if category in user_data[key]:
+                    user_data[key][category] += amount
+                else:
+                    user_data[key][category] = amount
+            
+            #Pop up of sucess message
+            st.toast(f"✅ {amount:.2f} {currency} added to {category}", icon="✅")
+
+            # pop up message of usage of budget
+            budget_field = f"expected_{category.lower()}"
+            budget = user_data[key].get(budget_field)
+            if budget:
+                spent = user_data[key][category]["amount"] if isinstance(user_data[key][category], dict) else user_data[key][category]
+                percent = spent / budget * 100
+                #if budget is used for more tgan 80% appear a mesage
+                if percent >= 100:
+                    st.toast(f"🚨 Budget for {category} exceeded ({percent:.0f}%)!", icon="🚨")
+                #if budget is used for more tgan 100% appear a mesage
+                elif percent >= 80:
+                    st.toast(f"⚠️ {category} spending at {percent:.0f}% of budget", icon="⚠️")
+            
+            # Save data to file
+            st.session_state.data[st.session_state.username] = user_data
             save_data()
 
+    # Edit Expense
     elif action == "Edit":
-        if selected_category in user_data[key]:
-            current_amount = user_data[key][selected_category]
-            amount = current_amount.get("amount", current_amount) if isinstance(current_amount, dict) else current_amount
-            new_amount = st.number_input(f"New amount for {selected_category}", value=amount, min_value=0.0, format="%.2f")
-            if st.button("✏️ Update Expense"):
-                user_data[key][selected_category] = new_amount
-                st.success("✔ Expense updated.")
-                save_data()
+        if category in user_data[key]:
+            current = user_data[key][category]
+            if category == "Other Expenses":
+                # Handle description and amount separately
+                current_amount = current["amount"]
+                current_description = current.get("description", "")
+                st.caption(f"💵 Current: {current_amount:.2f} {currency}")
+                st.caption(f"📝 Description: {current_description or '(none)'}")
+                new_amount = st.number_input("New amount", value=float(current_amount))
+                new_description = st.text_input("New description", value=current_description)
+                if st.button("✏️ Update Expense"):
+                    user_data[key][category]["amount"] = new_amount
+                    user_data[key][category]["description"] = new_description
+                    st.toast("✏️ 'Other Expenses' updated")
+                    #save data
+                    st.session_state.data[st.session_state.username] = user_data
+                    save_data()
+            else:
+                # Regular expenses catgeories
+                st.caption(f"💵 Current: {current:.2f} {currency}")
+                new_amount = st.number_input("New amount", value=float(current))
+                if st.button("✏️ Update Income"):
+                    user_data[key][category] = new_amount
+                    st.toast(f"✏️ {category} updated")
+                    #save data
+                    st.session_state.data[st.session_state.username] = user_data
+                    save_data()
+            
+            # Pop up message
+            budget_field = f"expected_{category.lower()}"
+            budget = user_data[key].get(budget_field)
+            if budget:
+                percent = new_amount / budget * 100
+                if percent >= 100:
+                    st.toast(f"🚨 Budget for {category} exceeded ({percent:.0f}%)!", icon="🚨")
+                elif percent >= 80:
+                    st.toast(f"⚠️ {category} spending at {percent:.0f}% of budget", icon="⚠️")
+        #if there is no data have a warning
         else:
-            st.warning(f"⚠ No expense entry found for {selected_category}.")
-
+            st.toast(f"⚠ No data under {category}", icon="⚠️")        
+                   
+    # Delete Expense
     elif action == "Delete":
-        if selected_category in user_data[key]:
-            if st.button("🗑 Delete Expense"):
-                del user_data[key][selected_category]
-                st.success("✔ Expense deleted.")
+        if category in user_data[key]:
+            if st.button("🗑 Delete Expense", type="primary"):
+                del user_data[key][category]
+                st.toast(f"🗑 {category} deleted successfully", icon="🗑")
+                #save data
+                st.session_state.data[st.session_state.username] = user_data
                 save_data()
         else:
-            st.warning(f"⚠ No expense entry found for {selected_category}.")
+            st.warning(f"⚠ No expense to delete under {category}.")
 
-    display_budget_summary(key, expense_categories, "", currency)
+    # Expense Summary
+    with st.expander("📊 Show expense summary"):
+        total = 0
+        #loop throug the categories and values of the dictionary
+        for cat, val in user_data[key].items():
+            if cat in expense_categories:
+                #if the category is other expenses
+                if isinstance(val, dict):
+                    st.write(f"*{cat}*: {val['amount']:.2f} {currency} — {val.get('description', '')}")
+                    #sum the other expenses category value
+                    total += val["amount"]
+                #for all other categories 
+                else:
+                    st.write(f"*{cat}*: {val:.2f} {currency}")
+                    #sum all the avlues of the categories
+                    total += val
+        st.markdown(f"### 💸 Total Expense: {total:.2f} {currency}") 
+
+
 
 
 #VIEW SUMMARY
