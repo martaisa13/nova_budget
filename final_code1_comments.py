@@ -644,30 +644,18 @@ def add_expense():
 
     # Add expense
     if action == "Add":
-        amount = st.number_input(f"Amount for {category}", min_value=0.0, format="%.2f")
-        description = ""
-        if category == "Other Expenses":
-            description = st.text_input("📝 Optional description")
-
+        amount = st.number_input(f"Amount for {selected_category}", min_value=0.0, format="%.2f")
         if st.button("➕ Add Expense", type="primary"):
-            if category == "Other Expenses": 
-                # If category already exists, update it
-                if category in user_data[key]:
-                    user_data[key][category]["amount"] += amount
-                    if description:
-                        user_data[key][category]["description"] += f"{description}"
-                else:
-                    # If it's the first entry, create dictionary
-                    user_data[key][category] = {
-                        "amount": amount,
-                        "description": description
-                    }
+            current_value = user_data[key].get(selected_category, 0.0)
+            if isinstance(current_value, dict):
+                current_amount = current_value.get("amount", 0.0)
             else:
-                # If not Other Income, just store amount (float)
-                if category in user_data[key]:
-                    user_data[key][category] += amount
-                else:
-                    user_data[key][category] = amount
+                current_amount = current_value
+            user_data[key][selected_category] = current_amount + amount
+            st.success(f"✔ Added {amount:.2f} {currency} for {selected_category}.")
+            save_data()
+
+
             
             #Pop up of sucess message
             st.toast(f"✅ {amount:.2f} {currency} added to {category}", icon="✅")
