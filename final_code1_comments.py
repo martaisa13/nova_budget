@@ -482,6 +482,8 @@ def manage_expense_budget(key):
     else:
         st.info("No data for the selected month and year.")
 
+
+
 #ADD INCOME FUNCTION
 def add_income():
     st.subheader ("💰Register Income")
@@ -610,21 +612,33 @@ def add_income():
             
             st.markdown(f"### 💵 Total Income: {total_income:.2f} {currency}")
 
+def check_budget_warning(user_data, key, category, currency):
+    budget_field = f"expected_{category.lower()}"
+    budget = user_data[key].get(budget_field)
+
+    if budget:
+        value = user_data[key][category]
+        spent = value["amount"] if isinstance(value, dict) else value
+        percent = spent / budget * 100
+
+        if percent >= 100:
+            st.toast(f"🚨 Budget for {category} exceeded ({percent:.0f}%)!", icon="🚨")
+        elif percent >= 80:
+            st.toast(f"⚠️ {category} spending at {percent:.0f}% of budget", icon="⚠️")
+
 #ADD EXPENSE FUNCTION WiTH POP-UP MESSAGES
 def add_expense():
-    st.subheader("💸 Register Expense")
-    # Explanation text for the user
+    st.subheader ("💸 Register Expense")
     st.markdown(
         "Use this section to manage your expenses per categories for the selected month and year. "
         "You can add new expenses entries, update existing ones, or remove them. "
-        "All changes are automatically saved.\nIn the end you have the possibility to check your Expenses Summary"
+        "All changes are automatically saved.\nIn the end you have the possibility to check your Expenes Summary"
     )
-    # Get key for selected month/year (e.g. "March_2025")
+
     key = choose_time()
     if key is None:
         return
 
-    # Make sure user data structure exists
     if st.session_state.username not in st.session_state.data:
         st.session_state.data[st.session_state.username] = {}
     
@@ -632,8 +646,6 @@ def add_expense():
     if key not in user_data:
         user_data[key] = {}
 
-    # Compact layout with two columns
-    # User selects expenses categories and action (Add/Edit/Delete)
     col1, col2 = st.columns(2)
     with col1:
         category = st.selectbox("💸 Expense Category", expense_categories)
@@ -642,28 +654,6 @@ def add_expense():
 
     currency = st.session_state.get("currency", "EUR")
 
-    # Helper function to check budget and show toast
-    def check_budget_and_notify(category_name, amount):
-        budget_key = f"expected_{category_name.lower().replace(' ', '_')}"
-        budget = user_data[key].get(budget_key)
-        try:
-            budget = float(budget)
-        except (TypeError, ValueError):
-            budget = None
-
-        try:
-            amount = float(amount)
-        except (TypeError, ValueError):
-            amount = 0
-
-        if budget and budget > 0:
-            percent = (amount / budget) * 100
-            if percent >= 100:
-                st.toast(f"🚨 Budget for {category_name} exceeded ({percent:.0f}%)!", icon="🚨")
-            elif percent >= 80:
-                st.toast(f"⚠️ {category_name} spending at {percent:.0f}% of budget", icon="⚠️")
-
-    # Add expense
     if action == "Add":
         amount = st.number_input(f"Amount for {category}", min_value=0.0, format="%.2f")
         description = ""
@@ -671,38 +661,32 @@ def add_expense():
             description = st.text_input("📝 Optional description")
 
         if st.button("➕ Add Expense", type="primary"):
-            if category == "Other Expenses":
+            if category == "Other Expenses": 
                 if category in user_data[key]:
                     user_data[key][category]["amount"] += amount
                     if description:
-                        user_data[key][category]["description"] += f" {description}"
+                        user_data[key][category]["description"] += f"{description}"
                 else:
                     user_data[key][category] = {
                         "amount": amount,
                         "description": description
                     }
-                spent = user_data[key][category]["amount"]
             else:
                 if category in user_data[key]:
                     user_data[key][category] += amount
                 else:
                     user_data[key][category] = amount
-                spent = user_data[key][category]
 
             st.toast(f"✅ {amount:.2f} {currency} added to {category}", icon="✅")
-
-            # Show budget alert toast immediately
-            check_budget_and_notify(category, spent)
-
+            check_budget_warning(user_data, key, category, currency)
             st.session_state.data[st.session_state.username] = user_data
             save_data()
 
-    # Edit Expense
     elif action == "Edit":
         if category in user_data[key]:
             current = user_data[key][category]
             if category == "Other Expenses":
-                current_amount = current.get("amount", 0)
+                current_amount = current["amount"]
                 current_description = current.get("description", "")
                 st.caption(f"💵 Current: {current_amount:.2f} {currency}")
                 st.caption(f"📝 Description: {current_description or '(none)'}")
@@ -712,53 +696,42 @@ def add_expense():
                     user_data[key][category]["amount"] = new_amount
                     user_data[key][category]["description"] = new_description
                     st.toast("✏️ 'Other Expenses' updated")
-
+                    check_budget_warning(user_data, key, category, currency)
                     st.session_state.data[st.session_state.username] = user_data
                     save_data()
-
-                    # Show budget alert toast immediately
-                    check_budget_and_notify(category, new_amount)
-
             else:
                 st.caption(f"💵 Current: {current:.2f} {currency}")
                 new_amount = st.number_input("New amount", value=float(current))
                 if st.button("✏️ Update Income"):
                     user_data[key][category] = new_amount
                     st.toast(f"✏️ {category} updated")
-
+                    check_budget_warning(user_data, key, category, currency)
                     st.session_state.data[st.session_state.username] = user_data
                     save_data()
-
-                    # Show budget alert toast immediately
-                    check_budget_and_notify(category, new_amount)
         else:
-            st.toast(f"⚠ No data under {category}", icon="⚠️")
+            st.toast(f"⚠ No data under {category}", icon="⚠️")        
 
-    # Delete Expense
     elif action == "Delete":
         if category in user_data[key]:
             if st.button("🗑 Delete Expense", type="primary"):
                 del user_data[key][category]
                 st.toast(f"🗑 {category} deleted successfully", icon="🗑")
-
                 st.session_state.data[st.session_state.username] = user_data
                 save_data()
         else:
             st.warning(f"⚠ No expense to delete under {category}.")
 
-    # Expense Summary
     with st.expander("📊 Show expense summary"):
         total = 0
         for cat, val in user_data[key].items():
             if cat in expense_categories:
                 if isinstance(val, dict):
-                    st.write(f"*{cat}*: {val.get('amount', 0):.2f} {currency} — {val.get('description', '')}")
-                    total += val.get("amount", 0)
+                    st.write(f"*{cat}*: {val['amount']:.2f} {currency} — {val.get('description', '')}")
+                    total += val["amount"]
                 else:
                     st.write(f"*{cat}*: {val:.2f} {currency}")
                     total += val
         st.markdown(f"### 💸 Total Expense: {total:.2f} {currency}")
-
 
 #VIEW SUMMARY
 def view_summary():
