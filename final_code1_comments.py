@@ -612,7 +612,7 @@ def add_income():
 
 #ADD EXPENSE FUNCTION WiTH POP-UP MESSAGES
 def add_expense():
-    st.subheader ("💸 Register Expense")
+    st.subheader("💸 Register Expense")
     # Explanation text for the user
     st.markdown(
         "Use this section to manage your expenses per categories for the selected month and year. "
@@ -642,6 +642,27 @@ def add_expense():
 
     currency = st.session_state.get("currency", "EUR")
 
+    # Helper function to check budget and show toast
+    def check_budget_and_notify(category_name, amount):
+        budget_key = f"expected_{category_name.lower().replace(' ', '_')}"
+        budget = user_data[key].get(budget_key)
+        try:
+            budget = float(budget)
+        except (TypeError, ValueError):
+            budget = None
+
+        try:
+            amount = float(amount)
+        except (TypeError, ValueError):
+            amount = 0
+
+        if budget and budget > 0:
+            percent = (amount / budget) * 100
+            if percent >= 100:
+                st.toast(f"🚨 Budget for {category_name} exceeded ({percent:.0f}%)!", icon="🚨")
+            elif percent >= 80:
+                st.toast(f"⚠️ {category_name} spending at {percent:.0f}% of budget", icon="⚠️")
+
     # Add expense
     if action == "Add":
         amount = st.number_input(f"Amount for {category}", min_value=0.0, format="%.2f")
@@ -650,52 +671,33 @@ def add_expense():
             description = st.text_input("📝 Optional description")
 
         if st.button("➕ Add Expense", type="primary"):
-            if category == "Other Expenses": 
+            if category == "Other Expenses":
                 # If category already exists, update it
                 if category in user_data[key]:
                     user_data[key][category]["amount"] += amount
                     if description:
-                        user_data[key][category]["description"] += f"{description}"
+                        # Add space before new description for readability
+                        user_data[key][category]["description"] += f" {description}"
                 else:
                     # If it's the first entry, create dictionary
                     user_data[key][category] = {
                         "amount": amount,
                         "description": description
                     }
+                spent = user_data[key][category]["amount"]
             else:
                 # If not Other Expenses, just store amount (float)
                 if category in user_data[key]:
                     user_data[key][category] += amount
                 else:
                     user_data[key][category] = amount
-            
-            # Pop up success message
+                spent = user_data[key][category]
+
             st.toast(f"✅ {amount:.2f} {currency} added to {category}", icon="✅")
-
-            # Pop up message of usage of budget
-            budget_field = f"expected_{category.lower()}"
-            budget = user_data[key].get(budget_field)
-
-            # Convert budget to float safely
-            try:
-                budget = float(budget)
-            except (TypeError, ValueError):
-                budget = None
-
-            if budget and budget > 0:
-                spent = user_data[key][category]["amount"] if isinstance(user_data[key][category], dict) else user_data[key][category]
-                try:
-                    spent = float(spent)
-                except (TypeError, ValueError):
-                    spent = 0
-
-                percent = (spent / budget) * 100
-
-                if percent >= 100:
-                    st.toast(f"🚨 Budget for {category} exceeded ({percent:.0f}%)!", icon="🚨")
-                elif percent >= 80:
-                    st.toast(f"⚠️ {category} spending at {percent:.0f}% of budget", icon="⚠️")
             
+            # Check budget usage
+            check_budget_and_notify(category, spent)
+
             # Save data to file
             st.session_state.data[st.session_state.username] = user_data
             save_data()
@@ -706,7 +708,7 @@ def add_expense():
             current = user_data[key][category]
             if category == "Other Expenses":
                 # Handle description and amount separately
-                current_amount = current["amount"]
+                current_amount = current.get("amount", 0)
                 current_description = current.get("description", "")
                 st.caption(f"💵 Current: {current_amount:.2f} {currency}")
                 st.caption(f"📝 Description: {current_description or '(none)'}")
@@ -719,23 +721,8 @@ def add_expense():
                     # Save data
                     st.session_state.data[st.session_state.username] = user_data
                     save_data()
-                    # Show budget usage toast
-                    budget_field = f"expected_{category.lower()}"
-                    budget = user_data[key].get(budget_field)
-                    try:
-                        budget = float(budget)
-                    except (TypeError, ValueError):
-                        budget = None
-                    if budget and budget > 0:
-                        try:
-                            amt = float(new_amount)
-                        except (TypeError, ValueError):
-                            amt = 0
-                        percent = (amt / budget) * 100
-                        if percent >= 100:
-                            st.toast(f"🚨 Budget for {category} exceeded ({percent:.0f}%)!", icon="🚨")
-                        elif percent >= 80:
-                            st.toast(f"⚠️ {category} spending at {percent:.0f}% of budget", icon="⚠️")
+                    # Check budget usage
+                    check_budget_and_notify(category, new_amount)
 
             else:
                 # Regular expenses categories
@@ -747,23 +734,8 @@ def add_expense():
                     # Save data
                     st.session_state.data[st.session_state.username] = user_data
                     save_data()
-                    # Show budget usage toast
-                    budget_field = f"expected_{category.lower()}"
-                    budget = user_data[key].get(budget_field)
-                    try:
-                        budget = float(budget)
-                    except (TypeError, ValueError):
-                        budget = None
-                    if budget and budget > 0:
-                        try:
-                            amt = float(new_amount)
-                        except (TypeError, ValueError):
-                            amt = 0
-                        percent = (amt / budget) * 100
-                        if percent >= 100:
-                            st.toast(f"🚨 Budget for {category} exceeded ({percent:.0f}%)!", icon="🚨")
-                        elif percent >= 80:
-                            st.toast(f"⚠️ {category} spending at {percent:.0f}% of budget", icon="⚠️")
+                    # Check budget usage
+                    check_budget_and_notify(category, new_amount)
         else:
             st.toast(f"⚠ No data under {category}", icon="⚠️")        
 
@@ -782,12 +754,11 @@ def add_expense():
     # Expense Summary
     with st.expander("📊 Show expense summary"):
         total = 0
-        # Loop through the categories and values of the dictionary
         for cat, val in user_data[key].items():
             if cat in expense_categories:
                 if isinstance(val, dict):
-                    st.write(f"*{cat}*: {val['amount']:.2f} {currency} — {val.get('description', '')}")
-                    total += val["amount"]
+                    st.write(f"*{cat}*: {val.get('amount', 0):.2f} {currency} — {val.get('description', '')}")
+                    total += val.get("amount", 0)
                 else:
                     st.write(f"*{cat}*: {val:.2f} {currency}")
                     total += val
